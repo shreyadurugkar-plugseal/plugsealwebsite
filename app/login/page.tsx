@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
 function safeNextPath() {
@@ -10,7 +9,6 @@ function safeNextPath() {
 }
 
 export default function Login() {
-  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,8 +23,9 @@ export default function Login() {
     setError(null);
     try {
       await (isSignup ? api.signup : api.login)(email, password);
-      router.replace(safeNextPath());
-      router.refresh();
+      // Full load: the client router may hold pages prefetched while signed out
+      // (which redirect to /login), and would otherwise reuse them.
+      window.location.replace(safeNextPath());
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

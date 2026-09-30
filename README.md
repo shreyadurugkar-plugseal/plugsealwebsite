@@ -23,8 +23,32 @@ or any VPS all work: `npm run build && npm start`, with `DATABASE_PATH` pointing
 the persistent disk. Serverless hosts like Vercel or Netlify **won't** work as-is; their
 filesystem is wiped between requests.
 Serve over HTTPS in production; the session cookie is marked `Secure` automatically on HTTPS.
+Installing requires HTTPS (plain `http://localhost` also works for testing).
 
-On iPhone, Safari → Share → **Add to Home Screen** gives it an app icon.
+## Installable app (PWA)
+
+BudgetSeal is a Progressive Web App: the same site works in any browser *and* installs
+like a native app, with a home-screen icon, full-screen launch, and no browser bars.
+
+- **Android / desktop Chrome & Edge:** tap **Install app** in the top bar (or the
+  install icon in the address bar).
+- **iPhone / iPad:** open in Safari, tap **Install app** for the steps, i.e.
+  Share → **Add to Home Screen**.
+- Long-press the installed icon for an **Add purchase** shortcut (Android).
+
+How it's built:
+
+| File | Purpose |
+| --- | --- |
+| `app/manifest.ts` | Name, colors, icons, standalone display, shortcuts |
+| `public/icons/`, `app/icon.png`, `app/apple-icon.png` | App icons (source: `public/icons/icon.svg`) |
+| `public/sw.js` | Service worker: caches static assets; shows `/offline` when there's no connection |
+| `components/Pwa.tsx` | Registers the worker (production builds only) and the **Install app** button |
+
+The service worker **never caches API responses or page HTML**, so one person's
+spending is never shown to someone else on a shared device. Offline, the app shows
+a "You're offline" screen instead of stale data. To ship a worker change, bump
+`VERSION` in `public/sw.js`.
 
 ## Accounts
 
@@ -53,7 +77,8 @@ lib/                  Shared by frontend and backend
   types.ts            Domain + API response types
   api.ts              Typed fetch client used by the pages
   format.ts           Currency/date formatting
-components/           Shared UI
+components/           Shared UI (nav, PWA install/registration)
+public/sw.js          Service worker
 ```
 
 ## API

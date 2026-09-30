@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
+import { InstallButton } from "@/components/Pwa";
 
 const links = [
   { href: "/", label: "Dashboard", short: "Home" },
@@ -12,12 +13,11 @@ const links = [
 
 export default function Nav({ email }: { email: string | null }) {
   const path = usePathname();
-  const router = useRouter();
 
   async function logout() {
     await api.logout();
-    router.replace("/login");
-    router.refresh();
+    // Full load drops any of this user's pages held in the client router cache.
+    window.location.replace("/login");
   }
 
   const linkClass = (href: string) =>
@@ -34,15 +34,18 @@ export default function Nav({ email }: { email: string | null }) {
           💰 BudgetSeal
         </Link>
         {email && (
-          <>
-            <div className="hidden sm:flex gap-1 ml-4">
-              {links.map((l) => (
-                <Link key={l.href} href={l.href} className={linkClass(l.href)}>
-                  {l.label}
-                </Link>
-              ))}
-            </div>
-            <div className="ml-auto flex items-center gap-3">
+          <div className="hidden sm:flex gap-1 ml-4">
+            {links.map((l) => (
+              <Link key={l.href} href={l.href} className={linkClass(l.href)}>
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-3">
+          <InstallButton />
+          {email && (
+            <>
               <span className="hidden md:inline text-xs text-gray-400 truncate max-w-48">
                 {email}
               </span>
@@ -52,9 +55,9 @@ export default function Nav({ email }: { email: string | null }) {
               >
                 Log out
               </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
       {email && (
         <div className="sm:hidden grid grid-cols-4 gap-1 px-2 pb-2">
