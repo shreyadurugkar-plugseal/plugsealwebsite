@@ -1,0 +1,180 @@
+"use client";
+import { useEffect, useState } from "react";
+import { getPurchases, deletePurchase } from "@/lib/storage";
+import { Purchase, CATEGORIES, Category, CATEGORY_COLORS } from "@/lib/types";
+import { getAlternatives } from "@/lib/alternatives";
+
+function formatCurrency(n: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(n);
+}
+
+export default function History() {
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [filterCat, setFilterCat] = useState<Category | "All">("All");
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPurchases(getPurchases());
+  }, []);
+
+  function handleDelete(id: string) {
+    if (!confirm("Delete this purchase?")) return;
+    setPurchases(deletePurchase(id));
+  }
+
+  const filtered = purchases.filter((p) => {
+    const matchesCat = filterCat === "All" || p.category === filterCat;
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
+  const total = filtered.reduce((s, p) => s + p.amount, 0);
+
+  return (
+    <div className="pt-2 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <h1 className="text-xl font-bold text-gray-900 flex-1">
+          Purchase History
+        </h1>
+        <span className="text-sm text-gray-500">
+          {filtered.length} purchases · {formatCurrency(total)}
+        </span>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <input
+          type="text"
+          placeholder="Search purchases…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+        />
+        <select
+          value={filterCat}
+          onChange={(e) =>
+            setFilterCat(e.target.value as Category | "All")
+          }
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+        >
+          <option value="All">All Categories</option>
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+          No purchases found.
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+          {filtered.map((p) => (
+            <PurchaseCard
+              key={p.id}
+              purchase={p}
+              isExpanded={expanded === p.id}
+              onToggle={() => setExpanded(expanded === p.id ? null : p.id)}
+              onDelete={() => handleDelete(p.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PurchaseCard({
+  purchase,
+  isExpanded,
+  onToggle,
+  onDelete,
+}: {
+  purchase: Purchase;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const color = CATEGORY_COLORS[purchase.category] || "#94a3b8";
+  const alternatives = isExpanded
+    ? getAlternatives(purchase.category, purchase.name)
+    : [];
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center gap-3">
+        <span
+          className="w-3 h-3 rounded-full flex-shrink-0"
+          style={{ backgroundColor: color }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-gray-800 truncate">
+              {purchase.name}
+            </p>
+            {purchase.isImpulse && (
+              <span className="flex-shrink-0 text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">
+                impulse
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">
+            {purchase.category} ·{" "}
+            {new Date(purchase.date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+            {purchase.note && ` · ${purchase.note}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <span className="text-sm font-semibold text-gray-900">
+            {formatCurrency(purchase.amount)}
+          </span>
+          <button
+            onClick={onToggle}
+            className="text-xs text-indigo-600 hover:underline"
+          >
+            {isExpanded ? "Hide" : "Alternatives"}
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-xs text-red-400 hover:text-red-600"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {isExpanded && alternatives.length > 0 && (
+        <div className="mt-3 ml-6 bg-green-50 rounded-lg p-3 space-y-2">
+          <p className="text-xs font-semibold text-green-800 mb-2">
+            💡 Cheaper alternatives for "{purchase.name}"
+          </p>
+          {alternatives.map((alt, i) => (
+            <div key={i} className="bg-white rounded border border-green-100 p-2.5">
+              <div className="flex justify-between items-start">
+                <p className="text-xs font-medium text-gray-800 flex-1">
+                  {alt.suggestion}
+                </p>
+                <span className="ml-2 flex-shrink-0 bg-green-100 text-green-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                  ~{alt.savingPercent}% off
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">{alt.tip}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
