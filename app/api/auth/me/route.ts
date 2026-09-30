@@ -1,8 +1,6 @@
 import { requireUser } from "@/server/auth/session";
 import { withErrorHandling } from "@/server/http";
-import { getAnalytics } from "@/server/services/analytics";
 
 export const GET = withErrorHandling(async () => {
-  const user = await requireUser();
-  return Response.json(getAnalytics(user.id));
+  return Response.json({ user: await requireUser() });
 });

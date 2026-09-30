@@ -11,24 +11,24 @@ function currentMonthRange(now = new Date()) {
   return { from: `${key}-01`, to: `${key}-31` };
 }
 
-export function getDashboard(): DashboardData {
+export function getDashboard(userId: string): DashboardData {
   const range = currentMonthRange();
-  const byCategory = purchases.totalsByCategory(range);
+  const byCategory = purchases.totalsByCategory(userId, range);
   return {
-    month: { ...purchases.summarize(range), byCategory },
-    allTime: purchases.summarize(),
+    month: { ...purchases.summarize(userId, range), byCategory },
+    allTime: purchases.summarize(userId),
     leaks: getTopMoneyLeaks(byCategory),
-    recent: purchases.listPurchases({ limit: 5 }),
+    recent: purchases.listPurchases(userId, { limit: 5 }),
   };
 }
 
-export function getAnalytics(monthsBack = 6): AnalyticsData {
+export function getAnalytics(userId: string, monthsBack = 6): AnalyticsData {
   const now = new Date();
   const months = Array.from({ length: monthsBack }, (_, i) => {
     return new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1 - i), 1);
   });
 
-  const totals = purchases.totalsByMonth(`${monthKey(months[0])}-01`);
+  const totals = purchases.totalsByMonth(userId, `${monthKey(months[0])}-01`);
   const monthly = months.map((d) => ({
     month: monthKey(d),
     label: d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
@@ -40,17 +40,17 @@ export function getAnalytics(monthsBack = 6): AnalyticsData {
     ? active.reduce((s, m) => s + m.amount, 0) / active.length
     : 0;
 
-  const impulseSummary = purchases.summarize({ impulseOnly: true });
+  const impulseSummary = purchases.summarize(userId, { impulseOnly: true });
 
   return {
     monthly,
     averagePerMonth,
-    totalCount: purchases.summarize().count,
-    byCategory: purchases.totalsByCategory(),
-    topExpenses: purchases.listPurchases({ orderBy: "amount", limit: 5 }),
+    totalCount: purchases.summarize(userId).count,
+    byCategory: purchases.totalsByCategory(userId),
+    topExpenses: purchases.listPurchases(userId, { orderBy: "amount", limit: 5 }),
     impulse: {
       ...impulseSummary,
-      items: purchases.listPurchases({ impulseOnly: true, limit: 8 }),
+      items: purchases.listPurchases(userId, { impulseOnly: true, limit: 8 }),
     },
   };
 }

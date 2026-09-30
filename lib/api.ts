@@ -5,6 +5,7 @@ import type {
   DashboardData,
   NewPurchase,
   Purchase,
+  User,
 } from "@/lib/types";
 
 export class ApiError extends Error {
@@ -22,6 +23,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (res.status === 204) return undefined as T;
+  if (res.status === 401 && !path.startsWith("/api/auth/")) {
+    const here = window.location.pathname + window.location.search;
+    // Full reload so the server layout re-reads the now-cleared session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign(`/login?next=${encodeURIComponent(here)}`);
+    return new Promise<T>(() => {});
+  }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = body.issues?.map((i: { message: string }) => i.message).join(", ");
@@ -36,6 +44,20 @@ function qs(params: Record<string, string | undefined>) {
 }
 
 export const api = {
+  signup: (email: string, password: string) =>
+    request<{ user: User }>("/api/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }).then((r) => r.user),
+
+  login: (email: string, password: string) =>
+    request<{ user: User }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }).then((r) => r.user),
+
+  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+
   listPurchases: (filter: { category?: Category; search?: string } = {}) =>
     request<{ purchases: Purchase[]; total: number; count: number }>(
       `/api/purchases${qs(filter)}`

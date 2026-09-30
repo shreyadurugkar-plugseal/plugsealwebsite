@@ -177,9 +177,14 @@ export default function AddPurchase() {
           border: 1px solid #e5e7eb;
           border-radius: 8px;
           padding: 8px 12px;
-          font-size: 14px;
+          font-size: 16px;
           outline: none;
           transition: border-color 0.15s;
+        }
+        @media (min-width: 640px) {
+          .input {
+            font-size: 14px;
+          }
         }
         .input:focus {
           border-color: #6366f1;

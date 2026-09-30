@@ -73,14 +73,14 @@ export default function History() {
           placeholder="Search purchases…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-base sm:text-sm focus:outline-none focus:border-indigo-400"
         />
         <select
           value={filterCat}
           onChange={(e) =>
             setFilterCat(e.target.value as Category | "All")
           }
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400"
+          className="border border-gray-200 rounded-lg px-3 py-2 text-base sm:text-sm focus:outline-none focus:border-indigo-400"
         >
           <option value="All">All Categories</option>
           {CATEGORIES.map((c) => (
@@ -157,19 +157,28 @@ function PurchaseCard({
             {purchase.note && ` · ${purchase.note}`}
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
           <span className="text-sm font-semibold text-gray-900">
             {formatCurrency(purchase.amount)}
           </span>
           <button
             onClick={onToggle}
-            className="text-xs text-indigo-600 hover:underline"
+            aria-label={isExpanded ? "Hide alternatives" : "Show cheaper alternatives"}
+            className="text-xs text-indigo-600 hover:underline px-1.5 py-2 sm:p-0"
           >
-            {isExpanded ? "Hide" : "Alternatives"}
+            {isExpanded ? (
+              "Hide"
+            ) : (
+              <>
+                <span className="sm:hidden">💡</span>
+                <span className="hidden sm:inline">Alternatives</span>
+              </>
+            )}
           </button>
           <button
             onClick={onDelete}
-            className="text-xs text-red-400 hover:text-red-600"
+            aria-label="Delete purchase"
+            className="text-xs text-red-400 hover:text-red-600 px-1.5 py-2 sm:p-0"
           >
             ✕
           </button>

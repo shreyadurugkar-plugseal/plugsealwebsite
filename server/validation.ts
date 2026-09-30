@@ -33,6 +33,18 @@ export const purchaseListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(1000).optional(),
 });
 
+export const credentialsSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email("Enter a valid email address").max(254)),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(200, "Password is too long"),
+});
+
 export const alternativesQuerySchema = z.object({
   category: z.enum(CATEGORIES),
   name: z.string().trim().min(1).max(120),

@@ -13,6 +13,11 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
+export interface User {
+  id: string;
+  email: string;
+}
+
 export interface Purchase {
   id: string;
   name: string;
