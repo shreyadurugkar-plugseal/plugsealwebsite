@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import { ServiceWorkerRegistration } from "@/components/Pwa";
-import { getCurrentUser } from "@/server/auth/session";
 
 export const metadata: Metadata = {
   title: "BudgetSeal — Track Your Spending",
@@ -22,16 +21,15 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
   return (
     <html lang="en">
       <body className="min-h-screen bg-gray-50 text-gray-900">
-        <Nav email={user?.email ?? null} />
+        <Nav />
         <main className="max-w-5xl mx-auto px-4 pb-12">{children}</main>
         <ServiceWorkerRegistration />
       </body>

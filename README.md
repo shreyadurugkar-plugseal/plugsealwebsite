@@ -17,9 +17,10 @@ Override the location with `DATABASE_PATH=/path/to/file.db`.
 **Same Wi-Fi (quick test):** run `npm run dev -- -H 0.0.0.0`, find your computer's
 local IP (e.g. `192.168.1.20`), and open `http://192.168.1.20:3000` on your phone.
 
-**Anywhere:** deploy it to Railway (below). Any host with a **persistent disk** also
-works (`npm run build && npm start`, with `DATABASE_PATH` on that disk). Serverless hosts
-like Vercel or Netlify **won't** work as-is; their filesystem is wiped between requests.
+**Anywhere:** deploy it to Railway (below), optionally with the frontend on Vercel.
+Any host with a **persistent disk** also works (`npm run build && npm start`, with
+`DATABASE_PATH` on that disk). Vercel alone can't hold the database; use it for the
+frontend together with a backend (see "Frontend on Vercel").
 Installing the app requires HTTPS (plain `http://localhost` also works for testing).
 
 ## Deploy on Railway
@@ -47,6 +48,28 @@ Notes:
 - **Backups:** the whole database is one file at `/data/budget.db`. Railway volume
   backups can be enabled in the volume's settings.
 - Optional: `DATABASE_PATH` overrides the database location entirely.
+
+## Frontend on Vercel (backend on Railway)
+
+Vercel can't keep the SQLite file, so on Vercel the app runs **frontend-only** and
+forwards every `/api/*` request to the Railway service. The browser only ever talks to
+the Vercel domain, so login cookies stay first-party and no CORS setup is needed.
+
+```
+phone / browser ──► your-app.vercel.app ──/api/*──► your-app.up.railway.app ──► SQLite volume
+                    (pages, PWA, icons)             (API + database)
+```
+
+1. Deploy the backend on Railway first (section above) and copy its public URL.
+2. In [vercel.com](https://vercel.com): **Add New → Project →** import this repo
+   (framework: Next.js is auto-detected; no build settings to change).
+3. **Settings → Environment Variables:** add
+   `API_BACKEND_URL` = `https://your-app.up.railway.app` (no trailing path).
+4. Deploy. Open the Vercel URL on your phone and tap **Install app**.
+
+If `API_BACKEND_URL` is missing, the Vercel build fails on purpose with a message
+saying so, instead of shipping a site that can't reach any data.
+The Railway service keeps working on its own URL too; both show the same accounts and data.
 
 ## Installable app (PWA)
 

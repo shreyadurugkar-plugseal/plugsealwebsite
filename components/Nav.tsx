@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
@@ -11,8 +12,21 @@ const links = [
   { href: "/analytics", label: "Analytics", short: "Stats" },
 ];
 
-export default function Nav({ email }: { email: string | null }) {
+const PUBLIC_PATHS = ["/login", "/offline"];
+
+export default function Nav() {
   const path = usePathname();
+  const showLinks = !PUBLIC_PATHS.includes(path);
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showLinks) return;
+    let cancelled = false;
+    api.me().then((user) => !cancelled && setEmail(user?.email ?? null));
+    return () => {
+      cancelled = true;
+    };
+  }, [showLinks]);
 
   async function logout() {
     await api.logout();
@@ -33,7 +47,7 @@ export default function Nav({ email }: { email: string | null }) {
         <Link href="/" className="font-bold text-indigo-600 text-lg tracking-tight">
           💰 BudgetSeal
         </Link>
-        {email && (
+        {showLinks && (
           <div className="hidden sm:flex gap-1 ml-4">
             {links.map((l) => (
               <Link key={l.href} href={l.href} className={linkClass(l.href)}>
@@ -44,7 +58,7 @@ export default function Nav({ email }: { email: string | null }) {
         )}
         <div className="ml-auto flex items-center gap-3">
           <InstallButton />
-          {email && (
+          {showLinks && email && (
             <>
               <span className="hidden md:inline text-xs text-gray-400 truncate max-w-48">
                 {email}
@@ -59,7 +73,7 @@ export default function Nav({ email }: { email: string | null }) {
           )}
         </div>
       </div>
-      {email && (
+      {showLinks && (
         <div className="sm:hidden grid grid-cols-4 gap-1 px-2 pb-2">
           {links.map((l) => (
             <Link key={l.href} href={l.href} className={linkClass(l.href)}>

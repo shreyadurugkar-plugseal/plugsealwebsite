@@ -58,6 +58,12 @@ export const api = {
 
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
 
+  me: () =>
+    request<{ user: User }>("/api/auth/me").then(
+      (r) => r.user,
+      () => null
+    ),
+
   listPurchases: (filter: { category?: Category; search?: string } = {}) =>
     request<{ purchases: Purchase[]; total: number; count: number }>(
       `/api/purchases${qs(filter)}`
