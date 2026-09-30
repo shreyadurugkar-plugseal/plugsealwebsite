@@ -12,71 +12,29 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { getPurchases } from "@/lib/storage";
-import { Purchase, Category, CATEGORY_COLORS } from "@/lib/types";
+import { api } from "@/lib/api";
+import { formatCurrency as fmt } from "@/lib/format";
+import { AnalyticsData, Category, CATEGORY_COLORS } from "@/lib/types";
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-function getLast6Months(): string[] {
-  const months = [];
-  const now = new Date();
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(
-      d.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
-    );
-  }
-  return months;
-}
-
-function getMonthKey(date: Date) {
-  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-}
+const formatCurrency = (n: number) => fmt(n, { whole: true });
 
 export default function Analytics() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPurchases(getPurchases());
+    api.analytics().then(setData, (e: Error) => setError(e.message));
   }, []);
 
-  const months = getLast6Months();
+  if (error) return <p className="pt-2 text-sm text-red-600">Couldn&apos;t load analytics: {error}</p>;
+  if (!data) return <p className="pt-2 text-sm text-gray-400">Loading…</p>;
 
-  // Monthly totals
-  const monthlyData = months.map((m) => {
-    const total = purchases
-      .filter((p) => getMonthKey(new Date(p.date)) === m)
-      .reduce((s, p) => s + p.amount, 0);
-    return { month: m, amount: total };
-  });
-
-  // Category breakdown (all time)
-  const byCat: Record<string, number> = {};
-  for (const p of purchases) {
-    byCat[p.category] = (byCat[p.category] || 0) + p.amount;
-  }
-  const pieData = Object.entries(byCat)
-    .sort(([, a], [, b]) => b - a)
-    .map(([name, value]) => ({ name, value }));
-
-  // Average per month
-  const nonZero = monthlyData.filter((m) => m.amount > 0);
-  const avg = nonZero.length
-    ? nonZero.reduce((s, m) => s + m.amount, 0) / nonZero.length
-    : 0;
-
-  // Impulse purchase stats
-  const impulsePurchases = purchases.filter((p) => p.isImpulse);
-  const impulseTotal = impulsePurchases.reduce((s, p) => s + p.amount, 0);
-
-  // Top single expenses
-  const topExpenses = [...purchases].sort((a, b) => b.amount - a.amount).slice(0, 5);
+  const monthlyData = data.monthly;
+  const pieData = data.byCategory.map((c) => ({ name: c.category, value: c.amount }));
+  const avg = data.averagePerMonth;
+  const hasData = data.totalCount > 0;
+  const impulseTotal = data.impulse.total;
+  const topExpenses = data.topExpenses;
 
   return (
     <div className="pt-2 space-y-6">
@@ -91,17 +49,17 @@ export default function Analytics() {
         />
         <MiniStat
           label="Total Purchases"
-          value={String(purchases.length)}
+          value={String(data.totalCount)}
           note="all time"
         />
         <MiniStat
           label="Impulse Spending"
           value={formatCurrency(impulseTotal)}
-          note={`${impulsePurchases.length} impulse buys`}
+          note={`${data.impulse.count} impulse buys`}
         />
         <MiniStat
           label="Categories Used"
-          value={String(Object.keys(byCat).length)}
+          value={String(data.byCategory.length)}
           note="distinct categories"
         />
       </div>
@@ -111,13 +69,13 @@ export default function Analytics() {
         <h2 className="font-semibold text-gray-800 mb-4">
           Monthly Spending (Last 6 Months)
         </h2>
-        {purchases.length === 0 ? (
+        {!hasData ? (
           <p className="text-sm text-gray-400">No data yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
               <XAxis
-                dataKey="month"
+                dataKey="label"
                 tick={{ fontSize: 12, fill: "#6b7280" }}
                 axisLine={false}
                 tickLine={false}
@@ -233,19 +191,19 @@ export default function Analytics() {
       </div>
 
       {/* Impulse buy detail */}
-      {impulsePurchases.length > 0 && (
+      {data.impulse.count > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
           <h2 className="font-semibold text-yellow-800 mb-3">
             ⚡ Impulse Purchases You Made
           </h2>
           <p className="text-sm text-yellow-700 mb-3">
-            You&apos;ve marked {impulsePurchases.length} purchases as impulse
+            You&apos;ve marked {data.impulse.count} purchases as impulse
             buys, totalling{" "}
             <strong>{formatCurrency(impulseTotal)}</strong>. These are prime
             candidates for cutting back.
           </p>
           <div className="space-y-1.5">
-            {impulsePurchases.slice(0, 8).map((p) => (
+            {data.impulse.items.map((p) => (
               <div
                 key={p.id}
                 className="flex justify-between text-sm bg-white rounded border border-yellow-100 px-3 py-1.5"

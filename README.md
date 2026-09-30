@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BudgetSeal
 
-## Getting Started
+Track spending habits, spot where money leaks, and get cheaper alternatives for past purchases.
 
-First, run the development server:
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Data is stored in SQLite at `data/budget.db` (created on first request, gitignored).
+Override the location with `DATABASE_PATH=/path/to/file.db`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/                  Frontend pages (client components) + API routes
+  page.tsx            Dashboard
+  add/ history/ analytics/
+  api/                HTTP layer — thin handlers: parse → call server → respond
+server/               Backend only (guarded by `server-only`)
+  db.ts               SQLite connection + versioned migrations
+  repositories/       SQL data access (amounts stored as integer cents)
+  services/           Business logic: analytics, money leaks, alternatives
+  validation.ts       zod schemas for request bodies and query strings
+  http.ts             Error handling → consistent JSON errors
+lib/                  Shared by frontend and backend
+  types.ts            Domain + API response types
+  api.ts              Typed fetch client used by the pages
+  format.ts           Currency/date formatting
+components/           Shared UI
+```
 
-## Learn More
+## API
 
-To learn more about Next.js, take a look at the following resources:
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/purchases?category=&search=&from=&to=&limit=` | List purchases + `total`, `count` for the filter |
+| POST | `/api/purchases` | Create `{ name, amount, category, date, note?, isImpulse? }` → 201 |
+| GET | `/api/purchases/:id` | Fetch one |
+| PATCH | `/api/purchases/:id` | Update any subset of fields |
+| DELETE | `/api/purchases/:id` | Delete → 204 |
+| GET | `/api/dashboard` | This month's totals, category breakdown, money leaks, recent purchases |
+| GET | `/api/analytics` | 6-month trend, category totals, top expenses, impulse stats |
+| GET | `/api/alternatives?category=&name=` | Cheaper alternatives for a purchase |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Errors return `{ "error": string, "issues"?: [{ path, message }] }` with 400 / 404 / 500.

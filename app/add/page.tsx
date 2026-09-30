@@ -1,38 +1,61 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addPurchase, generateId } from "@/lib/storage";
-import { CATEGORIES, Category } from "@/lib/types";
-import { getAlternatives } from "@/lib/alternatives";
+import { api } from "@/lib/api";
+import { todayISO } from "@/lib/format";
+import { Alternative, CATEGORIES, Category } from "@/lib/types";
 
 export default function AddPurchase() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<Category>("Food & Dining");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayISO);
   const [note, setNote] = useState("");
   const [isImpulse, setIsImpulse] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fetched, setFetched] = useState<Alternative[]>([]);
 
-  const alternatives = name.trim()
-    ? getAlternatives(category, name)
-    : [];
+  const trimmedName = name.trim();
+  const alternatives = trimmedName ? fetched : [];
 
-  function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    if (!trimmedName) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api.alternatives(category, trimmedName).then(
+        (alts) => !cancelled && setFetched(alts),
+        () => !cancelled && setFetched([])
+      );
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [category, trimmedName]);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !amount) return;
-    addPurchase({
-      id: generateId(),
-      name: name.trim(),
-      amount: parseFloat(amount),
-      category,
-      date,
-      note: note.trim() || undefined,
-      isImpulse,
-    });
-    setSaved(true);
-    setTimeout(() => router.push("/history"), 1000);
+    if (!trimmedName || !amount) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.createPurchase({
+        name: trimmedName,
+        amount: parseFloat(amount),
+        category,
+        date,
+        note: note.trim() || undefined,
+        isImpulse,
+      });
+      setSaved(true);
+      setTimeout(() => router.push("/history"), 1000);
+    } catch (err) {
+      setError((err as Error).message);
+      setSaving(false);
+    }
   }
 
   return (
@@ -113,12 +136,14 @@ export default function AddPurchase() {
           </span>
         </label>
 
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
         <button
           type="submit"
-          disabled={saved}
+          disabled={saving}
           className="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-60 transition-colors"
         >
-          {saved ? "✓ Saved! Redirecting…" : "Save Purchase"}
+          {saved ? "✓ Saved! Redirecting…" : saving ? "Saving…" : "Save Purchase"}
         </button>
       </form>
 

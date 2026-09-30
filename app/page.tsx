@@ -1,47 +1,24 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getPurchases } from "@/lib/storage";
-import { Purchase, Category, CATEGORY_COLORS } from "@/lib/types";
-import { getTopMoneyLeaks } from "@/lib/alternatives";
-
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(n);
-}
-
-function thisMonthPurchases(purchases: Purchase[]) {
-  const now = new Date();
-  return purchases.filter((p) => {
-    const d = new Date(p.date);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-}
+import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { DashboardData, Purchase, CATEGORY_COLORS } from "@/lib/types";
 
 export default function Dashboard() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPurchases(getPurchases());
+    api.dashboard().then(setData, (e: Error) => setError(e.message));
   }, []);
 
-  const monthly = thisMonthPurchases(purchases);
-  const totalMonth = monthly.reduce((s, p) => s + p.amount, 0);
-  const totalAll = purchases.reduce((s, p) => s + p.amount, 0);
+  if (error) return <p className="pt-2 text-sm text-red-600">Couldn&apos;t load dashboard: {error}</p>;
+  if (!data) return <p className="pt-2 text-sm text-gray-400">Loading…</p>;
 
-  const byCategory = monthly.reduce<Record<string, number>>((acc, p) => {
-    acc[p.category] = (acc[p.category] || 0) + p.amount;
-    return acc;
-  }, {});
-
-  const topCategories = Object.entries(byCategory)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
-
-  const leaks = getTopMoneyLeaks(byCategory as Record<Category, number>);
-  const recent = purchases.slice(0, 5);
+  const totalMonth = data.month.total;
+  const topCategories = data.month.byCategory.slice(0, 5);
+  const { leaks, recent } = data;
 
   return (
     <div className="space-y-6 pt-2">
@@ -50,21 +27,21 @@ export default function Dashboard() {
         <StatCard
           label="Spent This Month"
           value={formatCurrency(totalMonth)}
-          sub={`${monthly.length} transactions`}
+          sub={`${data.month.count} transactions`}
           color="indigo"
         />
         <StatCard
           label="All-Time Spending"
-          value={formatCurrency(totalAll)}
-          sub={`${purchases.length} total purchases`}
+          value={formatCurrency(data.allTime.total)}
+          sub={`${data.allTime.count} total purchases`}
           color="purple"
         />
         <StatCard
           label="Biggest Category"
-          value={topCategories[0]?.[0] ?? "—"}
+          value={topCategories[0]?.category ?? "—"}
           sub={
             topCategories[0]
-              ? formatCurrency(topCategories[0][1]) + " this month"
+              ? formatCurrency(topCategories[0].amount) + " this month"
               : "No data yet"
           }
           color="orange"
@@ -86,10 +63,9 @@ export default function Dashboard() {
             </p>
           ) : (
             <div className="space-y-3">
-              {topCategories.map(([cat, amount]) => {
+              {topCategories.map(({ category: cat, amount }) => {
                 const pct = totalMonth > 0 ? (amount / totalMonth) * 100 : 0;
-                const color =
-                  CATEGORY_COLORS[cat as Category] || "#94a3b8";
+                const color = CATEGORY_COLORS[cat];
                 return (
                   <div key={cat}>
                     <div className="flex justify-between text-sm mb-1">
@@ -216,10 +192,7 @@ function PurchaseRow({ purchase }: { purchase: Purchase }) {
           <p className="text-sm font-medium text-gray-800">{purchase.name}</p>
           <p className="text-xs text-gray-400">
             {purchase.category} ·{" "}
-            {new Date(purchase.date).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })}
+            {formatDate(purchase.date)}
           </p>
         </div>
       </div>

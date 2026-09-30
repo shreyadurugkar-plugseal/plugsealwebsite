@@ -1,38 +1,57 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getPurchases, deletePurchase } from "@/lib/storage";
-import { Purchase, CATEGORIES, Category, CATEGORY_COLORS } from "@/lib/types";
-import { getAlternatives } from "@/lib/alternatives";
-
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(n);
-}
+import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  Alternative,
+  Purchase,
+  CATEGORIES,
+  Category,
+  CATEGORY_COLORS,
+} from "@/lib/types";
 
 export default function History() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [filtered, setFiltered] = useState<Purchase[]>([]);
+  const [total, setTotal] = useState(0);
   const [filterCat, setFilterCat] = useState<Category | "All">("All");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPurchases(getPurchases());
-  }, []);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api
+        .listPurchases({
+          category: filterCat === "All" ? undefined : filterCat,
+          search: search.trim() || undefined,
+        })
+        .then(
+          (res) => {
+            if (cancelled) return;
+            setFiltered(res.purchases);
+            setTotal(res.total);
+            setError(null);
+          },
+          (e: Error) => !cancelled && setError(e.message)
+        );
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [filterCat, search, reloadKey]);
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm("Delete this purchase?")) return;
-    setPurchases(deletePurchase(id));
+    try {
+      await api.deletePurchase(id);
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
-
-  const filtered = purchases.filter((p) => {
-    const matchesCat = filterCat === "All" || p.category === filterCat;
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    return matchesCat && matchesSearch;
-  });
-
-  const total = filtered.reduce((s, p) => s + p.amount, 0);
 
   return (
     <div className="pt-2 space-y-4">
@@ -44,6 +63,8 @@ export default function History() {
           {filtered.length} purchases · {formatCurrency(total)}
         </span>
       </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -104,9 +125,13 @@ function PurchaseCard({
   onDelete: () => void;
 }) {
   const color = CATEGORY_COLORS[purchase.category] || "#94a3b8";
-  const alternatives = isExpanded
-    ? getAlternatives(purchase.category, purchase.name)
-    : [];
+  const [fetched, setFetched] = useState<Alternative[] | null>(null);
+  const alternatives = isExpanded ? fetched ?? [] : [];
+
+  useEffect(() => {
+    if (!isExpanded || fetched) return;
+    api.alternatives(purchase.category, purchase.name).then(setFetched, () => setFetched([]));
+  }, [isExpanded, fetched, purchase.category, purchase.name]);
 
   return (
     <div className="p-4">
@@ -128,11 +153,7 @@ function PurchaseCard({
           </div>
           <p className="text-xs text-gray-400">
             {purchase.category} ·{" "}
-            {new Date(purchase.date).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
+            {formatDate(purchase.date, true)}
             {purchase.note && ` · ${purchase.note}`}
           </p>
         </div>
@@ -158,7 +179,7 @@ function PurchaseCard({
       {isExpanded && alternatives.length > 0 && (
         <div className="mt-3 ml-6 bg-green-50 rounded-lg p-3 space-y-2">
           <p className="text-xs font-semibold text-green-800 mb-2">
-            💡 Cheaper alternatives for "{purchase.name}"
+            💡 Cheaper alternatives for &ldquo;{purchase.name}&rdquo;
           </p>
           {alternatives.map((alt, i) => (
             <div key={i} className="bg-white rounded border border-green-100 p-2.5">
