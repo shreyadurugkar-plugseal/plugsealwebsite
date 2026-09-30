@@ -17,13 +17,36 @@ Override the location with `DATABASE_PATH=/path/to/file.db`.
 **Same Wi-Fi (quick test):** run `npm run dev -- -H 0.0.0.0`, find your computer's
 local IP (e.g. `192.168.1.20`), and open `http://192.168.1.20:3000` on your phone.
 
-**Anywhere:** deploy it to a host with a **persistent disk**, since the SQLite file must
-survive restarts. Railway (with a volume), Fly.io (with a volume), Render (with a disk),
-or any VPS all work: `npm run build && npm start`, with `DATABASE_PATH` pointing at
-the persistent disk. Serverless hosts like Vercel or Netlify **won't** work as-is; their
-filesystem is wiped between requests.
-Serve over HTTPS in production; the session cookie is marked `Secure` automatically on HTTPS.
-Installing requires HTTPS (plain `http://localhost` also works for testing).
+**Anywhere:** deploy it to Railway (below). Any host with a **persistent disk** also
+works (`npm run build && npm start`, with `DATABASE_PATH` on that disk). Serverless hosts
+like Vercel or Netlify **won't** work as-is; their filesystem is wiped between requests.
+Installing the app requires HTTPS (plain `http://localhost` also works for testing).
+
+## Deploy on Railway
+
+The repo is ready: `railway.json` sets the build/start commands, a health check
+(`/api/health`), and restart-on-failure; `package.json` pins Node 22.
+
+1. **Create the service.** In [railway.com](https://railway.com): **New Project →
+   Deploy from GitHub repo →** pick this repo. In the service's **Settings → Source**,
+   choose the branch to deploy.
+2. **Attach a volume (required, or your data is wiped on every deploy).** Right-click the
+   service (or ⌘K → "Volume") → **Add Volume**, mount path **`/data`**. The app finds it
+   automatically via Railway's `RAILWAY_VOLUME_MOUNT_PATH` and stores `budget.db` there.
+   If you forget, the deploy logs show a `[db] WARNING: no Railway volume attached`.
+3. **Get a URL.** Service **Settings → Networking → Generate Domain**. Railway serves it
+   over HTTPS, so login cookies are `Secure` and the app is installable.
+4. **Open it on your phone**, create your account, and tap **Install app**.
+
+No environment variables are needed. Every push to the chosen branch redeploys;
+the volume (and your data) survives redeploys.
+
+Notes:
+- Keep the service at **1 replica**. SQLite on a volume and the in-memory login
+  rate limit are single-instance.
+- **Backups:** the whole database is one file at `/data/budget.db`. Railway volume
+  backups can be enabled in the volume's settings.
+- Optional: `DATABASE_PATH` overrides the database location entirely.
 
 ## Installable app (PWA)
 

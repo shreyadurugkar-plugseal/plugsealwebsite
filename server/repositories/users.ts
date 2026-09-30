@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { db } from "@/server/db";
+import { getDb } from "@/server/db";
 import type { User } from "@/lib/types";
 
 interface UserRow {
@@ -12,7 +12,7 @@ interface UserRow {
 export function findUserByEmail(
   email: string
 ): (User & { passwordHash: string }) | null {
-  const row = db
+  const row = getDb()
     .prepare("SELECT id, email, password_hash FROM users WHERE email = ?")
     .get(email) as UserRow | undefined;
   return row ? { id: row.id, email: row.email, passwordHash: row.password_hash } : null;
@@ -22,11 +22,11 @@ export class EmailTakenError extends Error {}
 
 export function createUser(email: string, passwordHash: string): User {
   const id = randomUUID();
-  db.transaction(() => {
+  getDb().transaction(() => {
     const isFirstUser =
-      (db.prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number }).n === 0;
+      (getDb().prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number }).n === 0;
     try {
-      db.prepare(
+      getDb().prepare(
         "INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)"
       ).run(id, email, passwordHash);
     } catch (err) {
@@ -37,20 +37,20 @@ export function createUser(email: string, passwordHash: string): User {
     }
     // Purchases recorded before accounts existed belong to whoever signs up first.
     if (isFirstUser) {
-      db.prepare("UPDATE purchases SET user_id = ? WHERE user_id IS NULL").run(id);
+      getDb().prepare("UPDATE purchases SET user_id = ? WHERE user_id IS NULL").run(id);
     }
   })();
   return { id, email };
 }
 
 export function insertSession(tokenHash: string, userId: string, expiresAt: number) {
-  db.prepare(
+  getDb().prepare(
     "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)"
   ).run(tokenHash, userId, expiresAt);
 }
 
 export function findUserBySession(tokenHash: string, now: number): User | null {
-  const row = db
+  const row = getDb()
     .prepare(
       `SELECT u.id, u.email FROM sessions s
          JOIN users u ON u.id = s.user_id
@@ -61,9 +61,9 @@ export function findUserBySession(tokenHash: string, now: number): User | null {
 }
 
 export function deleteSession(tokenHash: string) {
-  db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
+  getDb().prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
 }
 
 export function deleteExpiredSessions(now: number) {
-  db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
+  getDb().prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
 }

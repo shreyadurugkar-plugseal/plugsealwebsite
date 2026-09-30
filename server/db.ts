@@ -3,9 +3,6 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 
-const DB_PATH =
-  process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "budget.db");
-
 // Append-only: each entry runs once, tracked via SQLite's user_version pragma.
 const MIGRATIONS = [
   `CREATE TABLE purchases (
@@ -37,11 +34,26 @@ const MIGRATIONS = [
    CREATE INDEX idx_purchases_user_date ON purchases(user_id, date);`,
 ];
 
-function open(): Database.Database {
-  if (DB_PATH !== ":memory:") {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+function resolvePath(): string {
+  if (process.env.DATABASE_PATH) return process.env.DATABASE_PATH;
+  // Railway sets RAILWAY_VOLUME_MOUNT_PATH when a volume is attached to the service.
+  const volume = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  if (volume) return path.join(volume, "budget.db");
+  if (process.env.RAILWAY_ENVIRONMENT) {
+    console.warn(
+      "[db] WARNING: no Railway volume attached, so the database will be wiped on every deploy. " +
+        "Attach a volume to this service (any mount path, e.g. /data)."
+    );
   }
-  const db = new Database(DB_PATH);
+  return path.join(process.cwd(), "data", "budget.db");
+}
+
+function open(): Database.Database {
+  const dbPath = resolvePath();
+  if (dbPath !== ":memory:") {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  }
+  const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
@@ -58,4 +70,8 @@ function open(): Database.Database {
 // Survive dev-server hot reloads without opening a new handle each time.
 const globalForDb = globalThis as unknown as { budgetDb?: Database.Database };
 
-export const db = globalForDb.budgetDb ?? (globalForDb.budgetDb = open());
+// Opened lazily: `next build` imports this module, and the database (e.g. a
+// Railway volume) isn't available at build time.
+export function getDb(): Database.Database {
+  return (globalForDb.budgetDb ??= open());
+}

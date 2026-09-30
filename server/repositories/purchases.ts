@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { db } from "@/server/db";
+import { getDb } from "@/server/db";
 import type { Category, CategoryTotal, NewPurchase, Purchase } from "@/lib/types";
 
 interface PurchaseRow {
@@ -70,14 +70,14 @@ export function listPurchases(userId: string, filter: PurchaseFilter = {}): Purc
       ? "amount_cents DESC"
       : "date DESC, created_at DESC";
   const limit = filter.limit ? `LIMIT ${Math.floor(filter.limit)}` : "";
-  const rows = db
+  const rows = getDb()
     .prepare(`SELECT * FROM purchases ${where.sql} ORDER BY ${order} ${limit}`)
     .all(...where.params) as PurchaseRow[];
   return rows.map(toPurchase);
 }
 
 export function getPurchase(userId: string, id: string): Purchase | null {
-  const row = db
+  const row = getDb()
     .prepare("SELECT * FROM purchases WHERE id = ? AND user_id = ?")
     .get(id, userId) as PurchaseRow | undefined;
   return row ? toPurchase(row) : null;
@@ -85,7 +85,7 @@ export function getPurchase(userId: string, id: string): Purchase | null {
 
 export function insertPurchase(userId: string, input: NewPurchase): Purchase {
   const id = randomUUID();
-  db.prepare(
+  getDb().prepare(
     `INSERT INTO purchases (id, user_id, name, amount_cents, category, date, note, is_impulse)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
@@ -109,7 +109,7 @@ export function updatePurchase(
   const existing = getPurchase(userId, id);
   if (!existing) return null;
   const next = { ...existing, ...patch };
-  db.prepare(
+  getDb().prepare(
     `UPDATE purchases
         SET name = ?, amount_cents = ?, category = ?, date = ?, note = ?, is_impulse = ?
       WHERE id = ? AND user_id = ?`
@@ -128,7 +128,7 @@ export function updatePurchase(
 
 export function deletePurchase(userId: string, id: string): boolean {
   return (
-    db.prepare("DELETE FROM purchases WHERE id = ? AND user_id = ?").run(id, userId)
+    getDb().prepare("DELETE FROM purchases WHERE id = ? AND user_id = ?").run(id, userId)
       .changes > 0
   );
 }
@@ -138,7 +138,7 @@ export function summarize(
   filter: PurchaseFilter = {}
 ): { total: number; count: number } {
   const where = buildWhere(userId, filter);
-  const row = db
+  const row = getDb()
     .prepare(
       `SELECT COALESCE(SUM(amount_cents), 0) AS cents, COUNT(*) AS count
          FROM purchases ${where.sql}`
@@ -152,7 +152,7 @@ export function totalsByCategory(
   filter: PurchaseFilter = {}
 ): CategoryTotal[] {
   const where = buildWhere(userId, filter);
-  const rows = db
+  const rows = getDb()
     .prepare(
       `SELECT category, SUM(amount_cents) AS cents
          FROM purchases ${where.sql}
@@ -165,7 +165,7 @@ export function totalsByCategory(
 
 export function totalsByMonth(userId: string, fromDate: string): Map<string, number> {
   const where = buildWhere(userId, { from: fromDate });
-  const rows = db
+  const rows = getDb()
     .prepare(
       `SELECT substr(date, 1, 7) AS month, SUM(amount_cents) AS cents
          FROM purchases ${where.sql}
